@@ -186,7 +186,7 @@ sensors:
       'lower_fov': '-30'
       'horizontal_fov': '360'
       'sensor_tick': '0.05'
-      'rotation_frequency': '100'
+      'rotation_frequency': '20'
 
   #-----------gnss----------
   - 

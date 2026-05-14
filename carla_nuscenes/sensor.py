@@ -7,18 +7,29 @@ def parse_image(image):
             shape=(image.height, image.width, 4),
             dtype=np.uint8, buffer=image.raw_data,order="C")
     return array
-
+ 
 def parse_lidar_data(lidar_data):
-    points = []
-    current_channel = 0
-    end_idx = lidar_data.get_point_count(current_channel)
-    for idx,data in enumerate(lidar_data):
-        point = [data.point.x,data.point.y,data.point.z,data.intensity,current_channel]
-        if idx==end_idx:
-            current_channel+=1
-            end_idx+=lidar_data.get_point_count(current_channel)
-        points.append(point)
-    return np.array(points)
+    # Read raw buffer as float32 (x, y, z, intensity) — avoids float64 conversion
+    pts = np.frombuffer(lidar_data.raw_data, dtype=np.float32).reshape(-1, 4)
+
+    # Filter CARLA no-hit sentinel values
+    pts = pts[np.isfinite(pts).all(axis=1)].copy()
+
+    # CARLA left-handed → nuScenes right-handed coordinate system
+    pts[:, 1] = -pts[:, 1] #TODO: try to comment out this line
+
+    # Scale intensity [0.0, 1.0] → [0.0, 255.0] to match nuScenes
+    pts[:, 3] = np.clip(pts[:, 3] * 255.0, 0, 255)
+
+    # Build channel index column (replaces the manual loop)
+    channels = np.zeros(len(pts), dtype=np.float32)
+    idx = 0
+    for ch in range(lidar_data.channels):
+        count = lidar_data.get_point_count(ch)
+        channels[idx:idx + count] = ch
+        idx += count
+
+    return np.column_stack([pts, channels])  # (N, 5) float32
 
 def parse_radar_data(radar_data):
     points = np.frombuffer(radar_data.raw_data, dtype=np.dtype('f4')).copy()
